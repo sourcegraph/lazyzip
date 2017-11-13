@@ -17,7 +17,7 @@ for normal archives both fields will be the same. For files requiring
 the ZIP64 format the 32 bit fields will be 0xffffffff and the 64 bit
 fields must be used instead.
 */
-package zip
+package lazyzip
 
 import (
 	"os"

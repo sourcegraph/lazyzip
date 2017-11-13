@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package zip
+package lazyzip
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
@@ -113,7 +114,7 @@ var tests = []ZipTest{
 	},
 	{
 		Name:  "readme.notzip",
-		Error: ErrFormat,
+		Error: zip.ErrFormat,
 	},
 	{
 		Name: "dd.zip",
@@ -233,7 +234,7 @@ var tests = []ZipTest{
 				Content:    []byte("foo\n"),
 				ModTime:    time.Date(1979, 11, 30, 0, 0, 0, 0, time.UTC),
 				Mode:       0666,
-				ContentErr: ErrChecksum,
+				ContentErr: zip.ErrChecksum,
 			},
 			{
 				Name:    "bar.txt",
@@ -273,7 +274,7 @@ var tests = []ZipTest{
 				Content:    []byte("foo\n"),
 				ModTime:    time.Date(2012, 3, 8, 16, 59, 10, 0, timeZone(-8*time.Hour)),
 				Mode:       0644,
-				ContentErr: ErrChecksum,
+				ContentErr: zip.ErrChecksum,
 			},
 			{
 				Name:    "bar.txt",
@@ -494,7 +495,7 @@ func readTestZip(t *testing.T, zt ZipTest) {
 	}
 
 	// bail if file is not zip
-	if err == ErrFormat {
+	if err == zip.ErrFormat {
 		return
 	}
 
@@ -623,8 +624,8 @@ func TestInvalidFiles(t *testing.T) {
 
 	// zeroes
 	_, err := NewReader(bytes.NewReader(b), size)
-	if err != ErrFormat {
-		t.Errorf("zeroes: error=%v, want %v", err, ErrFormat)
+	if err != zip.ErrFormat {
+		t.Errorf("zeroes: error=%v, want %v", err, zip.ErrFormat)
 	}
 
 	// repeated directoryEndSignatures
@@ -634,8 +635,8 @@ func TestInvalidFiles(t *testing.T) {
 		copy(b[i:i+4], sig)
 	}
 	_, err = NewReader(bytes.NewReader(b), size)
-	if err != ErrFormat {
-		t.Errorf("sigs: error=%v, want %v", err, ErrFormat)
+	if err != zip.ErrFormat {
+		t.Errorf("sigs: error=%v, want %v", err, zip.ErrFormat)
 	}
 }
 

@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package zip
+package lazyzip
 
 import (
+	"archive/zip"
 	"bufio"
 	"encoding/binary"
 	"errors"
@@ -14,12 +15,6 @@ import (
 	"io"
 	"os"
 	"time"
-)
-
-var (
-	ErrFormat    = errors.New("zip: not a valid zip file")
-	ErrAlgorithm = errors.New("zip: unsupported compression algorithm")
-	ErrChecksum  = errors.New("zip: checksum error")
 )
 
 type Reader struct {
@@ -100,7 +95,7 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	for {
 		f := &File{zip: z, zipr: r, zipsize: size}
 		err = readDirectoryHeader(f, buf)
-		if err == ErrFormat || err == io.ErrUnexpectedEOF {
+		if err == zip.ErrFormat || err == io.ErrUnexpectedEOF {
 			break
 		}
 		if err != nil {
@@ -163,7 +158,7 @@ func (f *File) Open() (io.ReadCloser, error) {
 	r := io.NewSectionReader(f.zipr, f.headerOffset+bodyOffset, size)
 	dcomp := f.zip.decompressor(f.Method)
 	if dcomp == nil {
-		return nil, ErrAlgorithm
+		return nil, zip.ErrAlgorithm
 	}
 	var rc io.ReadCloser = dcomp(r)
 	var desr io.Reader
@@ -210,14 +205,14 @@ func (r *checksumReader) Read(b []byte) (n int, err error) {
 					err = err1
 				}
 			} else if r.hash.Sum32() != r.f.CRC32 {
-				err = ErrChecksum
+				err = zip.ErrChecksum
 			}
 		} else {
 			// If there's not a data descriptor, we still compare
 			// the CRC32 of what we've read against the file header
 			// or TOC's CRC32, if it seems like it was set.
 			if r.f.CRC32 != 0 && r.hash.Sum32() != r.f.CRC32 {
-				err = ErrChecksum
+				err = zip.ErrChecksum
 			}
 		}
 	}
@@ -236,7 +231,7 @@ func (f *File) findBodyOffset() (int64, error) {
 	}
 	b := readBuf(buf[:])
 	if sig := b.uint32(); sig != fileHeaderSignature {
-		return 0, ErrFormat
+		return 0, zip.ErrFormat
 	}
 	b = b[22:] // skip over most of the header
 	filenameLen := int(b.uint16())
@@ -245,8 +240,8 @@ func (f *File) findBodyOffset() (int64, error) {
 }
 
 // readDirectoryHeader attempts to read a directory header from r.
-// It returns io.ErrUnexpectedEOF if it cannot read a complete header,
-// and ErrFormat if it doesn't find a valid header signature.
+// It returns io.zip.ErrUnexpectedEOF if it cannot read a complete header,
+// and zip.ErrFormat if it doesn't find a valid header signature.
 func readDirectoryHeader(f *File, r io.Reader) error {
 	var buf [directoryHeaderLen]byte
 	if _, err := io.ReadFull(r, buf[:]); err != nil {
@@ -254,7 +249,7 @@ func readDirectoryHeader(f *File, r io.Reader) error {
 	}
 	b := readBuf(buf[:])
 	if sig := b.uint32(); sig != directoryHeaderSignature {
-		return ErrFormat
+		return zip.ErrFormat
 	}
 	f.CreatorVersion = b.uint16()
 	f.ReaderVersion = b.uint16()
@@ -325,21 +320,21 @@ parseExtras:
 			if needUSize {
 				needUSize = false
 				if len(fieldBuf) < 8 {
-					return ErrFormat
+					return zip.ErrFormat
 				}
 				f.UncompressedSize64 = fieldBuf.uint64()
 			}
 			if needCSize {
 				needCSize = false
 				if len(fieldBuf) < 8 {
-					return ErrFormat
+					return zip.ErrFormat
 				}
 				f.CompressedSize64 = fieldBuf.uint64()
 			}
 			if needHeaderOffset {
 				needHeaderOffset = false
 				if len(fieldBuf) < 8 {
-					return ErrFormat
+					return zip.ErrFormat
 				}
 				f.headerOffset = int64(fieldBuf.uint64())
 			}
@@ -417,7 +412,7 @@ parseExtras:
 	_ = needUSize
 
 	if needCSize || needHeaderOffset {
-		return ErrFormat
+		return zip.ErrFormat
 	}
 
 	return nil
@@ -451,7 +446,7 @@ func readDataDescriptor(r io.Reader, f *File) error {
 	}
 	b := readBuf(buf[:12])
 	if b.uint32() != f.CRC32 {
-		return ErrChecksum
+		return zip.ErrChecksum
 	}
 
 	// The two sizes that follow here can be either 32 bits or 64 bits
@@ -481,7 +476,7 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 			break
 		}
 		if i == 1 || bLen == size {
-			return nil, ErrFormat
+			return nil, zip.ErrFormat
 		}
 	}
 
@@ -514,7 +509,7 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 	}
 	// Make sure directoryOffset points to somewhere in our file.
 	if o := int64(d.directoryOffset); o < 0 || o >= size {
-		return nil, ErrFormat
+		return nil, zip.ErrFormat
 	}
 	return d, nil
 }
@@ -555,7 +550,7 @@ func readDirectory64End(r io.ReaderAt, offset int64, d *directoryEnd) (err error
 
 	b := readBuf(buf)
 	if sig := b.uint32(); sig != directory64EndSignature {
-		return ErrFormat
+		return zip.ErrFormat
 	}
 
 	b = b[12:]                        // skip dir size, version and version needed (uint64 + 2x uint16)
