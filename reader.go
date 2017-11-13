@@ -19,7 +19,6 @@ import (
 
 type Reader struct {
 	r             io.ReaderAt
-	File          []*File
 	Comment       string
 	decompressors map[uint16]Decompressor
 
@@ -88,41 +87,25 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	z.end = end
 	z.r = r
 	z.Comment = end.comment
-	return z.reset()
+	return z.Reset()
 }
 
-// reset starts the Reader back to the first File entry.
-func (z *Reader) reset() error {
-	z.File = make([]*File, 0, z.end.directoryRecords)
+// Reset starts the Reader back to the first File entry.
+func (z *Reader) Reset() error {
 	z.filesRead = 0
 	rs := io.NewSectionReader(z.r, 0, z.size)
 	if _, err := rs.Seek(int64(z.end.directoryOffset), io.SeekStart); err != nil {
 		return err
 	}
 	z.buf = bufio.NewReader(rs)
-
-	for {
-		f, err := z.next()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		z.File = append(z.File, f)
-	}
-	if len(z.File) != z.filesRead {
-		return zip.ErrFormat
-	}
-
 	return nil
 }
 
-// next advances to the next entry in the zip archive.
+// Next advances to the next entry in the zip archive.
 //
 // io.EOF is returned at the end of the input. Note: This function is not
 // threadsafe.
-func (z *Reader) next() (*File, error) {
+func (z *Reader) Next() (*File, error) {
 	// The count of files inside a zip is truncated to fit in a uint16.
 	// Gloss over this by reading headers until we encounter
 	// a bad one, and then only report an ErrFormat or UnexpectedEOF if

@@ -43,14 +43,19 @@ func TestOver65kFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReader: %v", err)
 	}
-	if got := len(zr.File); got != nFiles {
-		t.Fatalf("File contains %d files, want %d", got, nFiles)
-	}
 	for i := 0; i < nFiles; i++ {
-		want := fmt.Sprintf("%d.dat", i)
-		if zr.File[i].Name != want {
-			t.Fatalf("File(%d) = %q, want %q", i, zr.File[i].Name, want)
+		f, err := zr.Next()
+		if err != nil {
+			t.Fatal(err)
 		}
+		want := fmt.Sprintf("%d.dat", i)
+		if f.Name != want {
+			t.Fatalf("File(%d) = %q, want %q", i, f.Name, want)
+		}
+	}
+	_, err = zr.Next()
+	if err != io.EOF {
+		t.Fatalf("expected Next to io.EOF: %s", err)
 	}
 }
 
@@ -397,7 +402,11 @@ func testValidHeader(h *zip.FileHeader, t *testing.T) {
 	if err != nil {
 		t.Fatalf("got %v, expected nil", err)
 	}
-	zh := zf.File[0].FileHeader
+	fh, err := zf.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	zh := fh.FileHeader
 	if zh.Name != h.Name || zh.Method != h.Method || zh.UncompressedSize64 != uint64(len("hi")) {
 		t.Fatalf("got %q/%d/%d expected %q/%d/%d", zh.Name, zh.Method, zh.UncompressedSize64, h.Name, h.Method, len("hi"))
 	}

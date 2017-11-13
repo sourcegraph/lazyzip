@@ -481,12 +481,18 @@ func readTestZip(t *testing.T, zt ZipTest) {
 	if zt.Source != nil {
 		rat, size := zt.Source()
 		z, err = NewReader(rat, size)
+		if zt.Error != nil {
+			_, err = z.Next()
+		}
 	} else {
 		var rc *ReadCloser
 		rc, err = OpenReader(filepath.Join("testdata", zt.Name))
 		if err == nil {
 			defer rc.Close()
 			z = &rc.Reader
+			if zt.Error != nil {
+				_, err = rc.Next()
+			}
 		}
 	}
 	if err != zt.Error {
@@ -508,25 +514,39 @@ func readTestZip(t *testing.T, zt ZipTest) {
 	if z.Comment != zt.Comment {
 		t.Errorf("%s: comment=%q, want %q", zt.Name, z.Comment, zt.Comment)
 	}
-	if len(z.File) != len(zt.File) {
-		t.Fatalf("%s: file count=%d, want %d", zt.Name, len(z.File), len(zt.File))
-	}
 
 	// test read of each file
-	for i, ft := range zt.File {
-		readTestFile(t, zt, ft, z.File[i])
+	for _, ft := range zt.File {
+		f, err := z.Next()
+		if err != nil {
+			t.Fatalf("%s: error to Next to %s: %s", zt.Name, ft.Name, err)
+		}
+		readTestFile(t, zt, ft, f)
+	}
+	_, err = z.Next()
+	if err != io.EOF {
+		t.Fatalf("%s: expected Next to io.EOF: %s", zt.Name, err)
 	}
 
 	// test simultaneous reads
 	n := 0
 	done := make(chan bool)
 	for i := 0; i < 5; i++ {
+		z.Reset()
 		for j, ft := range zt.File {
-			go func(j int, ft ZipTestFile) {
-				readTestFile(t, zt, ft, z.File[j])
+			f, err := z.Next()
+			if err != nil {
+				t.Fatalf("%s: error to Next to %s: %s", zt.Name, ft.Name, err)
+			}
+			go func(j int, ft ZipTestFile, f *File) {
+				readTestFile(t, zt, ft, f)
 				done <- true
-			}(j, ft)
+			}(j, ft, f)
 			n++
+		}
+		_, err = z.Next()
+		if err != io.EOF {
+			t.Fatalf("%s: expected Next to io.EOF: %s", zt.Name, err)
 		}
 	}
 	for ; n > 0; n-- {
@@ -882,7 +902,11 @@ func returnBigZipBytes() (r io.ReaderAt, size int64) {
 		if err != nil {
 			panic(err)
 		}
-		f, err := r.File[0].Open()
+		ft, err := r.Next()
+		if err != nil {
+			panic(err)
+		}
+		f, err := ft.Open()
 		if err != nil {
 			panic(err)
 		}
@@ -937,7 +961,16 @@ func TestIssue10957(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, f := range z.File {
+	i := 0
+	for {
+		i++
+		f, err := z.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 		r, err := f.Open()
 		if err != nil {
 			continue
@@ -979,7 +1012,11 @@ func TestIssue11146(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := z.File[0].Open()
+	f, err := z.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := f.Open()
 	if err != nil {
 		t.Fatal(err)
 	}

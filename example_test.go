@@ -26,7 +26,14 @@ func ExampleReader() {
 
 	// Iterate through the files in the archive,
 	// printing some of their contents.
-	for _, f := range r.File {
+	for {
+		f, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
 		fmt.Printf("Contents of %s:\n", f.Name)
 		rc, err := f.Open()
 		if err != nil {
