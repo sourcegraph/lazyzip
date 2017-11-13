@@ -22,6 +22,11 @@ type Reader struct {
 	File          []*File
 	Comment       string
 	decompressors map[uint16]Decompressor
+
+	end       *directoryEnd
+	size      int64
+	filesRead int
+	buf       io.Reader
 }
 
 type ReadCloser struct {
@@ -81,34 +86,57 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	}
 	z.r = r
 	z.File = make([]*File, 0, end.directoryRecords)
+	z.end = end
+	z.size = size
+	z.filesRead = 0
 	z.Comment = end.comment
 	rs := io.NewSectionReader(r, 0, size)
 	if _, err = rs.Seek(int64(end.directoryOffset), io.SeekStart); err != nil {
 		return err
 	}
-	buf := bufio.NewReader(rs)
+	z.buf = bufio.NewReader(rs)
 
-	// The count of files inside a zip is truncated to fit in a uint16.
-	// Gloss over this by reading headers until we encounter
-	// a bad one, and then only report an ErrFormat or UnexpectedEOF if
-	// the file count modulo 65536 is incorrect.
 	for {
-		f := &File{zip: z, zipr: r, zipsize: size}
-		err = readDirectoryHeader(f, buf)
-		if err == zip.ErrFormat || err == io.ErrUnexpectedEOF {
-			break
-		}
+		f, err := z.next()
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return err
 		}
 		z.File = append(z.File, f)
 	}
-	if uint16(len(z.File)) != uint16(end.directoryRecords) { // only compare 16 bits here
-		// Return the readDirectoryHeader error if we read
-		// the wrong number of directory entries.
-		return err
+	if len(z.File) != z.filesRead {
+		return zip.ErrFormat
 	}
+
 	return nil
+}
+
+// next advances to the next entry in the zip archive.
+//
+// io.EOF is returned at the end of the input. Note: This function is not
+// threadsafe.
+func (z *Reader) next() (*File, error) {
+	// The count of files inside a zip is truncated to fit in a uint16.
+	// Gloss over this by reading headers until we encounter
+	// a bad one, and then only report an ErrFormat or UnexpectedEOF if
+	// the file count modulo 65536 is incorrect.
+	f := &File{zip: z, zipr: z.r, zipsize: z.size}
+	err := readDirectoryHeader(f, z.buf)
+	if err == zip.ErrFormat || err == io.ErrUnexpectedEOF {
+		if uint16(z.filesRead) != uint16(z.end.directoryRecords) { // only compare 16 bits here
+			// Return the readDirectoryHeader error if we read
+			// the wrong number of directory entries.
+			return nil, err
+		}
+		return nil, io.EOF
+	}
+	if err != nil {
+		return nil, err
+	}
+	z.filesRead++
+	return f, nil
 }
 
 // RegisterDecompressor registers or overrides a custom decompressor for a
