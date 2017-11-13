@@ -84,14 +84,19 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	if end.directoryRecords > uint64(size)/fileHeaderLen {
 		return fmt.Errorf("archive/zip: TOC declares impossible %d files in %d byte zip", end.directoryRecords, size)
 	}
-	z.r = r
-	z.File = make([]*File, 0, end.directoryRecords)
-	z.end = end
 	z.size = size
-	z.filesRead = 0
+	z.end = end
+	z.r = r
 	z.Comment = end.comment
-	rs := io.NewSectionReader(r, 0, size)
-	if _, err = rs.Seek(int64(end.directoryOffset), io.SeekStart); err != nil {
+	return z.reset()
+}
+
+// reset starts the Reader back to the first File entry.
+func (z *Reader) reset() error {
+	z.File = make([]*File, 0, z.end.directoryRecords)
+	z.filesRead = 0
+	rs := io.NewSectionReader(z.r, 0, z.size)
+	if _, err := rs.Seek(int64(z.end.directoryOffset), io.SeekStart); err != nil {
 		return err
 	}
 	z.buf = bufio.NewReader(rs)
