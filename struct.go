@@ -2,21 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-Package zip provides support for reading and writing ZIP archives.
-
-See: https://www.pkware.com/appnote
-
-This package does not support disk spanning.
-
-A note about ZIP64:
-
-To be backwards compatible the FileHeader has both 32 and 64 bit Size
-fields. The 64 bit fields will always contain the correct value and
-for normal archives both fields will be the same. For files requiring
-the ZIP64 format the 32 bit fields will be 0xffffffff and the 64 bit
-fields must be used instead.
-*/
+// Package lazyzip provides support for reading ZIP archives. It is a fork of
+// archive/zip. It differs from archive/zip since it does not read the full file
+// listing into memory, instead it provides an interface similiar to archive/tar.
 package lazyzip
 
 import (
