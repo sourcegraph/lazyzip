@@ -18,8 +18,10 @@ import (
 )
 
 type Reader struct {
-	r             io.ReaderAt
-	Comment       string
+	r                io.ReaderAt
+	Comment          string
+	DirectoryRecords uint64
+
 	decompressors map[uint16]Decompressor
 
 	end       *directoryEnd
@@ -87,6 +89,7 @@ func (z *Reader) init(r io.ReaderAt, size int64) error {
 	z.end = end
 	z.r = r
 	z.Comment = end.comment
+	z.DirectoryRecords = end.directoryRecords
 	return z.Reset()
 }
 
