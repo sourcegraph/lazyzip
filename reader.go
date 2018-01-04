@@ -104,6 +104,11 @@ func (z *Reader) Reset() error {
 	return nil
 }
 
+// Size is the size of the zip file being read.
+func (z *Reader) Size() int64 {
+	return z.size
+}
+
 // Next advances to the next entry in the zip archive.
 //
 // io.EOF is returned at the end of the input. Note: This function is not
