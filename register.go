@@ -8,7 +8,6 @@ import (
 	"compress/flate"
 	"errors"
 	"io"
-	"io/ioutil"
 	"sync"
 )
 
@@ -100,7 +99,7 @@ var (
 )
 
 func init() {
-	decompressors.Store(Store, Decompressor(ioutil.NopCloser))
+	decompressors.Store(Store, Decompressor(io.NopCloser))
 	decompressors.Store(Deflate, Decompressor(newFlateReader))
 }
 
