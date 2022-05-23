@@ -8,3 +8,4 @@ file listing into memory, instead it provides an interface similiar to
 See
 [Reader.Next](https://godoc.org/github.com/sourcegraph/lazyzip#Reader.Next)
 godoc.
+This is a test again!
