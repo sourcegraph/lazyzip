@@ -120,7 +120,7 @@ func (z *Reader) Next() (*File, error) {
 	// the file count modulo 65536 is incorrect.
 	f := &File{zip: z, zipr: z.r, zipsize: z.size}
 	err := readDirectoryHeader(f, z.buf)
-	if err == zip.ErrFormat || err == io.ErrUnexpectedEOF {
+	if errors.Is(err, zip.ErrFormat) || errors.Is(err, io.ErrUnexpectedEOF) {
 		if uint16(z.filesRead) != uint16(z.end.directoryRecords) { // only compare 16 bits here
 			// Return the readDirectoryHeader error if we read
 			// the wrong number of directory entries.
@@ -217,13 +217,13 @@ func (r *checksumReader) Read(b []byte) (n int, err error) {
 	if err == nil {
 		return
 	}
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		if r.nread != r.f.UncompressedSize64 {
 			return 0, io.ErrUnexpectedEOF
 		}
 		if r.desr != nil {
 			if err1 := readDataDescriptor(r.desr, r.f); err1 != nil {
-				if err1 == io.EOF {
+				if errors.Is(err1, io.EOF) {
 					err = io.ErrUnexpectedEOF
 				} else {
 					err = err1
@@ -491,7 +491,7 @@ func readDirectoryEnd(r io.ReaderAt, size int64) (dir *directoryEnd, err error) 
 			bLen = size
 		}
 		buf = make([]byte, int(bLen))
-		if _, err := r.ReadAt(buf, size-bLen); err != nil && err != io.EOF {
+		if _, err := r.ReadAt(buf, size-bLen); err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
 		}
 		if p := findSignatureInBlock(buf); p >= 0 {
